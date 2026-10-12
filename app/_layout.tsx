@@ -1,11 +1,14 @@
 import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import { useMigrations } from 'drizzle-orm/expo-sqlite/migrator';
 import { useEffect } from 'react';
+import { ActivityIndicator, Text, View } from 'react-native';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
-import { PhotoProvider } from '@/context/GeoPhotosContext';
+import { db } from '@/db/client';
+import migrations from '@/drizzle/migrations';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -36,18 +39,28 @@ export default function RootLayout() {
     }
   }, [loaded]);
 
+  // Ninguna pantalla se monta antes de que la base este migrada
+  const { success: migrated, error: migrationError } = useMigrations(db, migrations);
+
   if (!loaded) {
     return null;
   }
 
-  return (
-    // El provider envuelve al Stack completo, no a cada pantalla: asi las
-    // fotos sobreviven a la navegacion entre pestañas y a los remontajes que
-    // provoca el unmount/mount de CameraView al cambiar de camara.
-    <PhotoProvider>
-      <RootLayoutNav />
-    </PhotoProvider>
-  );
+  if (migrationError) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#0b1020' }}>
+        <Text style={{ color: '#f8fafc' }}>
+          Error al preparar la base de datos: {migrationError.message}
+        </Text>
+      </View>
+    );
+  }
+
+  if (!migrated) {
+    return <ActivityIndicator style={{ flex: 1, backgroundColor: '#0b1020' }} />;
+  }
+
+  return <RootLayoutNav />;
 }
 
 function RootLayoutNav() {
@@ -57,6 +70,7 @@ function RootLayoutNav() {
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="foto/[id]" options={{ title: 'Foto', presentation: 'modal' }} />
       </Stack>
     </ThemeProvider>
   );

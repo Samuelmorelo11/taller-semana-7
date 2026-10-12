@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, Text } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { usePhotos } from '@/context/GeoPhotosContext';
+import { usePhotos } from '@/hooks/usePhotos';
 
 const CENTRO_POR_DEFECTO = { latitude: 11.5442, longitude: -72.9072 };
 
@@ -58,7 +58,7 @@ const HTML = `
 `;
 
 export default function MapaScreen() {
-  const { photos } = usePhotos();
+  const { photosWithLocation: photos } = usePhotos();
   const webViewRef = useRef<WebView>(null);
   const [listo, setListo] = useState(false);
 
@@ -66,7 +66,9 @@ export default function MapaScreen() {
   useEffect(() => {
     if (!listo) return;
     webViewRef.current?.injectJavaScript(
-      `window.setPhotos(${JSON.stringify(photos)}); true;`
+      `window.setPhotos(${JSON.stringify(
+        photos.map((p) => ({ uri: p.uri, latitude: p.latitude, longitude: p.longitude })),
+      )}); true;`
     );
   }, [photos, listo]);
 
@@ -88,7 +90,7 @@ export default function MapaScreen() {
 
       {photos.length === 0 && (
         <View style={styles.overlayInfo} pointerEvents="none">
-          <Text style={styles.overlayText}>Aún no has tomado fotos en GeoCam.</Text>
+          <Text style={styles.overlayText}>Aún no hay fotos con ubicación.</Text>
         </View>
       )}
     </View>

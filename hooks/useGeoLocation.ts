@@ -1,6 +1,6 @@
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Linking } from 'react-native';
+import { AppState, Linking } from 'react-native';
 
 import { toPermissionState } from '@/lib/permissions';
 import type { Coords, PermissionState } from '@/types/geo';
@@ -51,6 +51,8 @@ const WATCH_OPTIONS: Location.LocationOptions = {
 
 export interface UseGeoLocationResult {
   permission: PermissionState;
+  /** GPS del sistema encendido. `null` mientras se consulta. Distinto del permiso de la app. */
+  servicesEnabled: boolean | null;
   coords: Coords | null;
   /** `true` mientras se resuelve un fix puntual (`getCurrent`). */
   isLocating: boolean;
@@ -60,8 +62,14 @@ export interface UseGeoLocationResult {
   openSettings: () => Promise<void>;
 }
 
-export function useGeoLocation(): UseGeoLocationResult {
+export interface UseGeoLocationOptions {
+  /** `false` apaga el seguimiento (p. ej. cuando la pantalla pierde el foco). */
+  watch?: boolean;
+}
+
+export function useGeoLocation({ watch = true }: UseGeoLocationOptions = {}): UseGeoLocationResult {
   const [permissionState, setPermissionState] = useState<PermissionState>('checking');
+  const [servicesEnabled, setServicesEnabled] = useState<boolean | null>(null);
   const [coords, setCoords] = useState<Coords | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -94,9 +102,38 @@ export function useGeoLocation(): UseGeoLocationResult {
     };
   }, []);
 
+  // --- 1b. Re-consulta permiso y GPS al volver a la app (el usuario pudo cambiarlos en Ajustes)
+  useEffect(() => {
+    let cancelled = false;
+
+    const refresh = async () => {
+      try {
+        const [response, enabled] = await Promise.all([
+          Location.getForegroundPermissionsAsync(),
+          Location.hasServicesEnabledAsync(),
+        ]);
+        if (cancelled) return;
+        setPermissionState(toPermissionState(response));
+        setServicesEnabled(enabled);
+      } catch {
+        if (!cancelled) setServicesEnabled(false);
+      }
+    };
+
+    void refresh();
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void refresh();
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.remove();
+    };
+  }, [watch]);
+
   // --- 2. Seguimiento continuo, condicionado a 'granted' --------------------
   useEffect(() => {
-    if (permissionState !== 'granted') {
+    if (permissionState !== 'granted' || servicesEnabled !== true || !watch) {
       // Sin permiso no hay suscripcion. Si lo habia, el cleanup del efecto
       // anterior ya la cerro al cambiar `permissionState`.
       return;
@@ -131,7 +168,7 @@ export function useGeoLocation(): UseGeoLocationResult {
       subscription?.remove();
       subscription = null;
     };
-  }, [permissionState]);
+  }, [permissionState, servicesEnabled, watch]);
 
   // --- 3. Peticion explicita del permiso ------------------------------------
   const requestPermission = useCallback(async () => {
@@ -152,6 +189,9 @@ export function useGeoLocation(): UseGeoLocationResult {
 
     setIsLocating(true);
     try {
+      const enabled = await Location.hasServicesEnabledAsync();
+      setServicesEnabled(enabled);
+      if (!enabled) return null; // GPS apagado: la foto se guarda sin coordenadas
       const position = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
@@ -178,6 +218,7 @@ export function useGeoLocation(): UseGeoLocationResult {
 
   return {
     permission: permissionState,
+    servicesEnabled,
     coords,
     isLocating,
     error,

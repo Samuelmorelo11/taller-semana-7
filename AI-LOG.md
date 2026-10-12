@@ -265,3 +265,26 @@ npx expo-doctor
 > Nota: las URLs de docs **deben** incluir el segmento de version (`v57.0.0`).
 > Sin el, se sirve la documentacion `latest` y las APIs pueden no coincidir con
 > el SDK instalado.
+
+---
+
+# Semana 7 — GeoCam persistente (SQLite + Drizzle)
+
+## 1. Prompts utilizados
+
+- "Reemplaza el GeoPhotosContext en memoria por SQLite con Drizzle; agrega álbumes (FK opcional, `set null`), segunda migración (`note`, `favorite`), CRUD, filtros y archivos permanentes."
+
+## 2. Código generado vs. modificado
+
+- **Generado:** esquema, repositorios (`photos`, `albums`), hooks, pantallas `fotos` y `foto/[id]`, `services/photoFiles.ts`.
+- **Modificado / decidido a mano:**
+  - Dos migraciones separadas con `drizzle-kit generate` (`inicial`, `nota_favorito`), ninguna editada a mano; se probaron sobre SQLite real: la foto previa se conserva y al borrar un álbum la foto queda con `album_id = NULL`.
+  - `useShake` no llama `clearAll` directamente: pide confirmación antes (un gesto accidental no debe borrar todo).
+  - `useGeoLocation` recibe `{ watch }` para apagar el GPS cuando la pestaña pierde el foco.
+  - La consulta de una sola foto vive en el repositorio (`byIdQuery`) para que ningún hook ni pantalla importe Drizzle directamente.
+
+## 3. Alucinaciones o errores detectados
+
+- `react-hooks/refs`: el linter rechazó usar el objeto devuelto por `useCamera()` en el render; se desestructuró el resultado.
+- `react-hooks/set-state-in-effect`: copiar la nota a un estado dentro de `useEffect` se reemplazó por un borrador (`draft ?? photo.note`).
+- Verificado contra los `.d.ts` instalados: `File`, `Directory`, `Paths` de `expo-file-system` (API nueva, sin `copyAsync`) y `openDatabaseSync` con `enableChangeListener`.

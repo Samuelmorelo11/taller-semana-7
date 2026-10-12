@@ -8,7 +8,7 @@ import { useColorScheme } from '@/components/useColorScheme';
 
 /**
  * Navegación por pestañas.
- * El PhotoProvider está en app/_layout.tsx, no aquí.
+ * Los datos viven en SQLite (db/), se leen con hooks reactivos.
  */
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -32,6 +32,19 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => (
             <SymbolView
               name={{ ios: 'camera.fill', android: 'photo_camera', web: 'photo_camera' }}
+              tintColor={color}
+              size={26}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="fotos"
+        options={{
+          title: 'Fotos',
+          tabBarIcon: ({ color }) => (
+            <SymbolView
+              name={{ ios: 'photo.on.rectangle', android: 'photo_library', web: 'photo_library' }}
               tintColor={color}
               size={26}
             />
